@@ -103,7 +103,7 @@ class Bump_Controller(Node):
         self.get_logger().info(f"x_ang: {msg.angular_velocity.x=}")
 
         # Log z_acceleration
-        self.z_acc = data(2)
+        self.z_acc = data[2]
 
         return
 
