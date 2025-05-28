@@ -17,3 +17,8 @@ To run the bump node:
 cd ~/ros2_ws/src
 ros2 run bump_controller bump_node
 ```
+
+To install keras:
+'''
+python3 -m pip install 'keras'
+'''
