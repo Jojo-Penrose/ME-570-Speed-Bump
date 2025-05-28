@@ -2,8 +2,6 @@
 ackermann_msg = to_ackermann(self.speed, self.last_steering_angle, timestamp_unix)
 '''
 
-
-
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
@@ -47,20 +45,52 @@ class Bump_Controller(Node):
         # Data stuff
         self.min_speed = 0.3                # const: minimum speed, used on bumps
         self.max_speed = 1.0                # const: max speed, used when not bumping
-        self.curr_speed = self.min_speed    # current speed, update while driving
+        self.speed = self.max_speed         # current speed, update while driving
         self.steer = 0.0                    # last predicted steering angle
-        self.bump_flag = 0                  # bool: do we be bumpin'?
+        self.steer_gain = 1.2               # Steering effort gain
+        self.bump_flag = False              # bool: do we be bumpin'?
+        self.z_acc = 0                      # last z-accel measurement
+        self.bump_thresh = 7.0              # z-accel threshold for bumpin'
+        self.bump_count = 0                 # number of bumps detected on this bump
+        self.last_bump = 0                  # UNIX timestamp of last bump
 
 
 
     def image_callback(self, msg):
-
         # Convert ROS image to numpy format
         # timestamp_unix is the image timestamp in seconds (Unix time)
         image, timestamp_unix = image_to_np(msg)
 
         # Run model?
-        # predictions = self.model(image)
+        # self.steer, see_bump = self.model(image)
+        self.steer, see_bump = 0.0, 0   # spoof
+
+        # Detect new visible speedbump
+        if self.bump_flag == False and see_bump:
+            print("Bump spotted, prepare for bumpin'")
+            self.bump_flag = True           # Set bumpin' flag
+            self.speed = self.min_speed     # Reduce speed
+
+        # Wait at least half a second between bumps
+        if timestamp_unix > self.last_bump + 0.5:
+            # Detect when a bump be bumped
+            if self.bump_flag and self.z_acc >= self.bump_thresh:
+                print("*BUMP*")
+                self.bump_count = self.bump_count + 1       # Increment bump counter
+                self.last_bump = timestamp_unix             # Log last bump time
+
+        # Decide when the bump is traversed
+        if self.bump_count >= 2:
+            print("Bump covered, back to normal")
+            self.bump_flag = False          # Lower bump flag
+            self.bump_count = 0             # Reset bump counter
+            self.speed = self.max_speed     # Increase speed again
+
+        # Publish control commands
+        ackermann_msg = to_ackermann(self.speed, self.steer * self.steer_gain, timestamp_unix)
+        self.publisher.publish(ackermann_msg)
+
+        return
 
 
 
@@ -72,7 +102,9 @@ class Bump_Controller(Node):
         print("I am IMU callback!")
         self.get_logger().info(f"x_ang: {msg.angular_velocity.x=}")
 
-        # ackermann_msg = to_ackermann(self.speed, self.last_steering_angle, timestamp_unix)
+        # Log z_acceleration
+        self.z_acc = data(2)
+
         return
 
 
